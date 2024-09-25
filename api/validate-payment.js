@@ -1,12 +1,4 @@
-const express = require("express");
 const axios = require("axios");
-const bodyParser = require("body-parser"); // To handle form-encoded data
-require("dotenv").config();
-
-const app = express();
-
-// Middleware to handle application/x-www-form-urlencoded data
-app.use(bodyParser.urlencoded({ extended: true }));
 
 // Function to compute Basic Auth header from API key and secret key
 function getBasicAuthHeader(apiKey, secretKey) {
@@ -15,8 +7,12 @@ function getBasicAuthHeader(apiKey, secretKey) {
   return `Basic ${base64Credentials}`;
 }
 
-// Route to validate SBPay request and process payment
-app.post("/sbpay/validate-payment", async (req, res) => {
+// Export the function as a serverless function
+module.exports = async (req, res) => {
+  if (req.method !== "POST") {
+    return res.status(405).json({ message: "Method Not Allowed" });
+  }
+
   try {
     console.log("Incoming form data:", req.body);
 
@@ -60,7 +56,7 @@ app.post("/sbpay/validate-payment", async (req, res) => {
         external_reference: order_id,
       },
     };
-    console.log("Clip API request body:", JSON.stringify(body))
+    console.log("Clip API request body:", JSON.stringify(body));
     const response = await axios.post(clipApiUrl, body, {
       headers: {
         Authorization: basicAuthHeader,
@@ -70,14 +66,9 @@ app.post("/sbpay/validate-payment", async (req, res) => {
 
     const data = response.data;
 
-    // If payment link is successfully generated, return the link
+    // If payment link is successfully generated, redirect to the payment link
     if (response.status === 200) {
-      return res.status(200).json({
-        message:
-          "Payment request validated and Clip payment link created successfully.",
-        paymentLink: data.payment_request_url,
-        qrCodeUrl: data.qr_image_url,
-      });
+      return res.redirect(data.payment_request_url);
     } else {
       return res.status(500).json({
         message: "Error creating Clip payment link",
@@ -95,10 +86,4 @@ app.post("/sbpay/validate-payment", async (req, res) => {
       error: error.message,
     });
   }
-});
-
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+};
